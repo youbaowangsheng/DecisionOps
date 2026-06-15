@@ -1,0 +1,132 @@
+# Production configuration
+replicaCount: 3
+
+image:
+  repository: deciops
+  tag: v1.0.0
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: deciops-registry-secret
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 60
+
+# External Database Configuration (Alibaba Cloud RDS)
+externalDatabase:
+  enabled: true
+  host: pgm-2ze834z5bs28y31fvo.pg.rds.aliyuncs.com
+  port: 5432
+  database: deciops
+  username: fipai
+  # Password should be provided via secrets.externaldb_password
+
+# Redis Configuration
+externalRedis:
+  enabled: true
+  host: redis.primary
+  port: 6379
+  # Password should be provided via secrets.redis_password
+
+config:
+  db_url: postgresql://fipai:${DB_PASSWORD}@pgm-2ze834z5bs28y31fvo.pg.rds.aliyuncs.com:5432/deciops
+  redis_url: redis://:${REDIS_PASSWORD}@redis.primary:6379
+  data_platform_url: https://data.internal/api
+  agent_platform_url: https://agent.internal/api
+  cors_origins: "*"
+  log_level: info
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    - host: deciops.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: backend-bff
+          port: 8081
+  tls:
+    - hosts:
+        - deciops.example.com
+      secretName: deciops-tls-secret
+
+# Disable built-in PostgreSQL - use external RDS
+postgresql:
+  enabled: false
+
+# Disable built-in Redis - use external Redis
+redis:
+  enabled: false
+
+# Decision Engine Configuration
+decisionEngine:
+  replicaCount: 3
+  service:
+    port: 8001
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+
+# Backend BFF Configuration
+backendBff:
+  replicaCount: 3
+  service:
+    port: 8081
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60
+
+# Frontend Configuration
+frontend:
+  replicaCount: 3
+  service:
+    port: 3000
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 60

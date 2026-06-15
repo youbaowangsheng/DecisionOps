@@ -1,0 +1,193 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "deciops.fullname" . }}-postgres
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+    app: postgres
+spec:
+  serviceName: {{ include "deciops.fullname" . }}-postgres
+  replicas: {{ .Values.postgresql.replicaCount }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "deciops.selectorLabels" . | nindent 6 }}
+      app: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "deciops.selectorLabels" . | nindent 8 }}
+        app: postgres
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_DB
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "deciops.fullname" . }}-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.postgresql.resources | nindent 12 }}
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-backup
+              mountPath: /backup
+          {{- if .Values.postgresql.backup.enabled }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    if [ -f /backup/pre-stop.sh ]; then
+                      /backup/pre-stop.sh
+                    fi
+          {{- end }}
+      volumes:
+        - name: postgres-backup
+          emptyDir: {}
+  {{- if .Values.postgresql.persistentVolume.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.postgresql.persistentVolume.storageClass }}
+        storageClassName: {{ .Values.postgresql.persistentVolume.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.postgresql.persistentVolume.size }}
+  {{- end }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "deciops.fullname" . }}-postgres
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+    app: postgres
+spec:
+  clusterIP: None
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+  selector:
+    {{- include "deciops.selectorLabels" . | nindent 4 }}
+    app: postgres
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "deciops.fullname" . }}-postgres-secret
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+type: Opaque
+data:
+  {{- if .Values.secrets.postgres_password }}
+  POSTGRES_PASSWORD: {{ .Values.secrets.postgres_password | b64enc | quote }}
+  {{- else }}
+  POSTGRES_PASSWORD: {{ randAlphaNum 32 | b64enc | quote }}
+  {{- end }}
+
+{{- if .Values.postgresql.backup.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "deciops.fullname" . }}-postgres-backup
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.postgresql.backup.schedule | quote }}
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          containers:
+            - name: backup
+              image: postgres:15-alpine
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  BACKUP_FILE=/backup/deciops_backup_$TIMESTAMP.sql.gz
+
+                  pg_dump -h {{ include "deciops.fullname" . }}-postgres -U postgres -d postgres | gzip > $BACKUP_FILE
+
+                  {{- if .Values.postgresql.backup.destination }}
+                  # Upload to destination (requires compatible storage)
+                  echo "Backup completed: $BACKUP_FILE"
+                  {{- end }}
+
+                  # Cleanup old backups (keep last {{ .Values.postgresql.backup.retention }} days)
+                  find /backup -name "deciops_backup_*.sql.gz" -mtime +{{ .Values.postgresql.backup.retention }} -delete
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "deciops.fullname" . }}-postgres-secret
+                      key: POSTGRES_PASSWORD
+              volumeMounts:
+                - name: postgres-backup
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          restartPolicy: OnFailure
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 8 }}
+          {{- end }}
+{{- end }}

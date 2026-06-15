@@ -1,0 +1,25 @@
+{
+  "name": "deciops",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DeciOps - 智策运营大脑",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm -r run dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "deploy:local": "docker-compose -f packages/deciops-deploy/docker-compose/docker-compose.yml up -d",
+    "deploy:prod": "helmfile -f packages/deciops-deploy/helmfile/helmfile.yaml apply"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

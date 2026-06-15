@@ -1,0 +1,89 @@
+# Local environment configuration
+namespace: deciops-local
+
+image:
+  repository: deciops
+  tag: local
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+
+ingress:
+  enabled: false
+
+config:
+  db_url: postgresql://deciops:deciops@postgres:5432/deciops
+  redis_url: redis://redis:6379
+  data_platform_url: http://localhost:8080
+  agent_platform_url: http://localhost:8080
+  cors_origins: "*"
+
+postgresql:
+  enabled: true
+  replicaCount: 1
+  persistentVolume:
+    enabled: false
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  backup:
+    enabled: false
+
+redis:
+  enabled: true
+  replicaCount: 1
+  persistentVolume:
+    enabled: false
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+decisionEngine:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+backendBff:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+frontend:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi

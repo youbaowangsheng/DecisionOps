@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # Redis service for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: deciops-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - deciops-network
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: "1G"
+        reservations:
+          cpus: "500m"
+          memory: "512M"
+    restart: unless-stopped
+
+  # Decision Engine - Python FastAPI service
+  deciops-engine:
+    image: deciops/decision-engine:${IMAGE_TAG:-latest}
+    container_name: deciops-engine
+    environment:
+      DATA_PLATFORM_URL: ${DATA_PLATFORM_URL:-https://data.internal/api}
+      AGENT_PLATFORM_URL: ${AGENT_PLATFORM_URL:-https://agent.internal/api}
+      DB_URL: ${DB_URL}
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: 8001
+    ports:
+      - "8001:8001"
+    volumes:
+      - engine_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - deciops-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "2"
+          memory: "2G"
+        reservations:
+          cpus: "1"
+          memory: "1G"
+    restart: unless-stopped
+
+  # Backend BFF - Go service
+  deciops-backend-bff:
+    image: deciops/backend-bff:${IMAGE_TAG:-latest}
+    container_name: deciops-backend-bff
+    environment:
+      DATABASE_URL: ${DB_URL}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      ENGINE_URL: http://deciops-engine:8001
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      deciops-engine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - deciops-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1"
+          memory: "1G"
+        reservations:
+          cpus: "500m"
+          memory: "512M"
+    restart: unless-stopped
+
+networks:
+  deciops-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  engine_data:

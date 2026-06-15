@@ -1,0 +1,138 @@
+# Default configuration
+replicaCount: 1
+
+image:
+  repository: deciops
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+config:
+  db_url: postgresql://deciops:password@postgres:5432/deciops
+  redis_url: redis://redis:6379
+  data_platform_url: https://data.internal/api
+  agent_platform_url: https://agent.internal/api
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: deciops.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: backend-bff
+          port: 8081
+  tls: []
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  replicaCount: 2
+  persistentVolume:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"
+    retention: 7
+
+# Redis Configuration
+redis:
+  enabled: true
+  replicaCount: 1
+  persistentVolume:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+# Decision Engine Configuration
+decisionEngine:
+  replicaCount: 1
+  service:
+    port: 8080
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# Backend BFF Configuration
+backendBff:
+  replicaCount: 1
+  service:
+    port: 8081
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# Frontend Configuration
+frontend:
+  replicaCount: 1
+  service:
+    port: 3000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70

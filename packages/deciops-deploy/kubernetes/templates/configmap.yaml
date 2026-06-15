@@ -1,0 +1,75 @@
+{{- if .Values.externalDatabase.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "deciops.fullname" . }}-external-db-config
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+data:
+  DB_HOST: {{ .Values.externalDatabase.host | quote }}
+  DB_PORT: {{ .Values.externalDatabase.port | quote }}
+  DB_NAME: {{ .Values.externalDatabase.database | quote }}
+  DB_USER: {{ .Values.externalDatabase.username | quote }}
+{{- end }}
+
+{{- if .Values.externalRedis.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "deciops.fullname" . }}-external-redis-config
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+data:
+  REDIS_HOST: {{ .Values.externalRedis.host | quote }}
+  REDIS_PORT: {{ .Values.externalRedis.port | quote }}
+{{- end }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "deciops.fullname" . }}-engine-config
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+data:
+  DATA_PLATFORM_URL: {{ .Values.config.data_platform_url | quote }}
+  AGENT_PLATFORM_URL: {{ .Values.config.agent_platform_url | quote }}
+  LOG_LEVEL: {{ .Values.config.log_level | default "info" | quote }}
+  PORT: {{ .Values.decisionEngine.service.port | quote }}
+  REDIS_URL: {{ .Values.config.redis_url | quote }}
+{{- if .Values.externalDatabase.enabled }}
+  DB_URL: postgresql://{{ .Values.externalDatabase.username }}:${DB_PASSWORD}@{{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.database }}
+{{- else }}
+  DB_URL: {{ .Values.config.db_url | quote }}
+{{- end }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "deciops.fullname" . }}-backend-config
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+data:
+{{- if .Values.externalDatabase.enabled }}
+  DATABASE_URL: postgresql://{{ .Values.externalDatabase.username }}:${DB_PASSWORD}@{{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.database }}
+{{- else }}
+  DATABASE_URL: {{ .Values.config.db_url | quote }}
+{{- end }}
+  REDIS_URL: {{ .Values.config.redis_url | quote }}
+  ENGINE_URL: http://{{ include "deciops.fullname" . }}-decision-engine:{{ .Values.decisionEngine.service.port }}
+  CORS_ORIGINS: {{ .Values.config.cors_origins | default "*" | quote }}
+  LOG_LEVEL: {{ .Values.config.log_level | default "info" | quote }}
+  PORT: {{ .Values.backendBff.service.port | quote }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "deciops.fullname" . }}-frontend-config
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+data:
+  NEXT_PUBLIC_API_URL: {{ .Values.config.api_url | quote }}
+  NEXT_PUBLIC_WS_URL: {{ .Values.config.ws_url | quote }}
+  NEXT_PUBLIC_ENGINE_URL: http://{{ include "deciops.fullname" . }}-decision-engine:{{ .Values.decisionEngine.service.port }}

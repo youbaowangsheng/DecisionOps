@@ -1,0 +1,26 @@
+environments:
+  local:
+    values:
+      - environments/local.yaml
+  prod:
+    values:
+      - environments/prod.yaml
+
+releases:
+  - name: deciops
+    namespace: {{ .Environment.Name }}
+    chart: ../kubernetes
+    values:
+      - values.yaml
+      - {{ .Environment.Name }}/values.yaml
+    secrets:
+      - secrets/{{ .Environment.Name }}.yaml.gpg
+
+---
+
+# deciops-local environment deployment
+repositories:
+  - name: stable
+    url: https://charts.helm.sh/stable
+  - name: bitnami
+    url: https://charts.bitnami.com/bitnami
