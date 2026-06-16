@@ -136,3 +136,13 @@ frontend:
     minReplicas: 2
     maxReplicas: 10
     targetCPUUtilizationPercentage: 70
+
+# Observability Configuration
+observability:
+  enabled: true
+  alertmanager:
+    smtp_host: "smtp.example.com:587"
+    smtp_from: "alerts@deciops.io"
+    slack_webhook: ""
+    pagerduty_key: ""
+    webhook_url: "http://deciops-backend:8080/webhook"

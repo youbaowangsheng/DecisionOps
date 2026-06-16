@@ -35,6 +35,9 @@ spec:
             - name: http
               containerPort: {{ .Values.decisionEngine.service.port }}
               protocol: TCP
+            - name: metrics
+              containerPort: 9091
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "deciops.fullname" . }}-engine-config
@@ -69,6 +72,14 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           resources:
             {{- toYaml .Values.decisionEngine.resources | nindent 12 }}
           volumeMounts:
@@ -116,6 +127,9 @@ spec:
             - name: http
               containerPort: {{ .Values.backendBff.service.port }}
               protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "deciops.fullname" . }}-backend-config
@@ -155,6 +169,14 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           resources:
             {{- toYaml .Values.backendBff.resources | nindent 12 }}
 

@@ -1,0 +1,129 @@
+{{- if .Values.observability.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "deciops.fullname" . }}-jaeger-config
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+data:
+  jaeger-agent-config.yaml: |
+    service-name: deciops
+    collector:
+      host: {{ include "deciops.fullname" . }}-jaeger-collector
+      port: 14267
+    processor:
+      queue-size: 2000
+      num-workers: 4
+      batch-size: 100
+      flush-interval-ms: 1000
+    storage:
+      type: memory
+      memory:
+        max-traces: 100000
+    sampling:
+      type: probabilistic
+      param: 0.1
+    admin-http-port: 14271
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "deciops.fullname" . }}-jaeger-collector-config
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+data:
+  jaeger-collector-config.yaml: |
+    service-name: deciops
+    admin-http-port: 14269
+    collector:
+      zipkin:
+        port: 9411
+      otlp:
+        http:
+          host: 0.0.0.0
+          port: 4318
+        grpc:
+          host: 0.0.0.0
+          port: 4317
+    storage:
+      type: memory
+      memory:
+        max-traces: 100000
+    sampling:
+      type: probabilistic
+      param: 0.1
+    queue:
+      size: 10000
+    strategies:
+      type: all
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "deciops.fullname" . }}-jaeger-agent
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+    app: jaeger
+spec:
+  type: ClusterIP
+  ports:
+    - name: jaeger-agent
+      port: 6831
+      targetPort: 6831
+      protocol: UDP
+    - name: jaeger-agent-http
+      port: 14271
+      targetPort: 14271
+      protocol: TCP
+  selector:
+    {{- include "deciops.selectorLabels" . | nindent 4 }}
+    app: jaeger
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "deciops.fullname" . }}-jaeger-collector
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+    app: jaeger
+spec:
+  type: ClusterIP
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    - name: zipkin
+      port: 9411
+      targetPort: 9411
+      protocol: TCP
+  selector:
+    {{- include "deciops.selectorLabels" . | nindent 4 }}
+    app: jaeger
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "deciops.fullname" . }}-jaeger-query
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+    app: jaeger
+spec:
+  type: LoadBalancer
+  ports:
+    - name: jaeger-ui
+      port: 16686
+      targetPort: 16686
+      protocol: TCP
+  selector:
+    {{- include "deciops.selectorLabels" . | nindent 4 }}
+    app: jaeger
+{{- end }}

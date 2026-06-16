@@ -1,0 +1,72 @@
+{{- if .Values.observability.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "deciops.fullname" . }}-backend-bff
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+    prometheus: kube-prometheus
+spec:
+  jobLabel: backend-bff
+  selector:
+    matchLabels:
+      app: backend-bff
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics
+      scheme: http
+      tlsConfig:
+        insecureSkipVerify: true
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "deciops.fullname" . }}-decision-engine
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+    prometheus: kube-prometheus
+spec:
+  jobLabel: decision-engine
+  selector:
+    matchLabels:
+      app: decision-engine
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics
+      scheme: http
+      tlsConfig:
+        insecureSkipVerify: true
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "deciops.fullname" . }}-frontend
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+    prometheus: kube-prometheus
+spec:
+  jobLabel: frontend
+  selector:
+    matchLabels:
+      app: frontend
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: metrics
+      interval: 15s
+      path: /metrics
+      scheme: http
+      tlsConfig:
+        insecureSkipVerify: true
+{{- end }}

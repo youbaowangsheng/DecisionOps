@@ -1,0 +1,597 @@
+{{- if .Values.observability.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "deciops.fullname" . }}-grafana-dashboard
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  deciops-overview.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "10.0.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(rate(http_requests_total{service=\"backend-bff\"}[5m]))",
+              "legendFormat": "Backend BFF",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(rate(http_requests_total{service=\"decision-engine\"}[5m]))",
+              "legendFormat": "Decision Engine",
+              "refId": "B"
+            }
+          ],
+          "title": "Request Rate",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "line"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0.3
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.5
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{service=\"backend-bff\"}[5m])) by (le))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=\"backend-bff\"}[5m])) by (le))",
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=\"backend-bff\"}[5m])) by (le))",
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ],
+          "title": "Backend BFF Latency",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.01
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 8
+          },
+          "id": 3,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(rate(http_requests_total{status=~\"5..\",service=~\"backend-bff|decision-engine\"}[5m])) / sum(rate(http_requests_total{service=~\"backend-bff|decision-engine\"}[5m]))",
+              "legendFormat": "Error Rate",
+              "refId": "A"
+            }
+          ],
+          "title": "Error Rate",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 8
+          },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(increase(decisions_total[1h]))",
+              "legendFormat": "Decisions (1h)",
+              "refId": "A"
+            }
+          ],
+          "title": "Decision Count (1h)",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "green",
+                    "value": 0.95
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 8
+          },
+          "id": 5,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(rate(audit_events_processed_total[5m])) / sum(rate(audit_events_total[5m]))",
+              "legendFormat": "Audit Efficiency",
+              "refId": "A"
+            }
+          ],
+          "title": "Audit Efficiency",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 16
+          },
+          "id": 6,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(container_memory_working_set_bytes{pod=~\"deciops-.*\"}) by (pod)",
+              "legendFormat": "{{ pod }}",
+              "refId": "A"
+            }
+          ],
+          "title": "Memory Usage by Pod",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 16
+          },
+          "id": 7,
+          "options": {
+            "legend": {
+              "calcs": ["mean", "max"],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_PROMETHEUS}"
+              },
+              "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"deciops-.*\"}[5m])) by (pod) * 100",
+              "legendFormat": "{{ pod }}",
+              "refId": "A"
+            }
+          ],
+          "title": "CPU Usage by Pod",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["deciops", "overview"],
+      "templating": {
+        "list": [
+          {
+            "current": {
+              "selected": false,
+              "text": "Prometheus",
+              "value": "Prometheus"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "label": "Datasource",
+            "multi": false,
+            "name": "DS_PROMETHEUS",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "type": "datasource"
+          }
+        ]
+      },
+      "time": {
+        "from": "now-1h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "DecisionOps Overview",
+      "uid": "deciops-overview",
+      "version": 1,
+      "weekStart": ""
+    }
+{{- end }}

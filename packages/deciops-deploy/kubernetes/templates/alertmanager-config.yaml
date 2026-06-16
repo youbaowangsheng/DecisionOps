@@ -1,0 +1,68 @@
+{{- if .Values.observability.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "deciops.fullname" . }}-alertmanager-config
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+data:
+  alertmanager.yaml: |
+    global:
+      resolve_timeout: 5m
+      smtp_smarthost: {{ .Values.observability.alertmanager.smtp_host | default "localhost:587" }}
+      smtp_from: {{ .Values.observability.alertmanager.smtp_from | default "alerts@deciops.io" }}
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: default
+      routes:
+        - match:
+            severity: critical
+          receiver: critical-alerts
+          continue: true
+        - match:
+            severity: warning
+          receiver: warning-alerts
+    receivers:
+      - name: default
+        {{- if .Values.observability.alertmanager.slack_webhook }}
+        slack_configs:
+          - channel: '#alerts'
+            api_url: {{ .Values.observability.alertmanager.slack_webhook }}
+            send_resolved: true
+            title: |
+              {{ if eq .Status "firing" }}:fire:{{ else }}:white_checkmark:{{ end }} {{ .GroupLabels.alertname }}
+            text: |
+              {{ range .Alerts }}
+              *Alert:* {{ .Labels.alertname }}
+              *Description:* {{ .Annotations.description }}
+              *Summary:* {{ .Annotations.summary }}
+              *Labels:* {{ range .Labels.SortedPairs }}{{ .Name }}: {{ .Value }} {{ end }}
+              {{ end }}
+        {{- end }}
+      - name: critical-alerts
+        {{- if .Values.observability.alertmanager.pagerduty_key }}
+        pagerduty_configs:
+          - service_key: {{ .Values.observability.alertmanager.pagerduty_key }}
+            severity: critical
+            send_resolved: true
+        {{- end }}
+        webhook_configs:
+          - url: {{ .Values.observability.alertmanager.webhook_url | default "http://localhost:8080/webhook" }}
+            send_resolved: true
+      - name: warning-alerts
+        {{- if .Values.observability.alertmanager.slack_webhook }}
+        slack_configs:
+          - channel: '#warnings'
+            api_url: {{ .Values.observability.alertmanager.slack_webhook }}
+            send_resolved: true
+        {{- end }}
+    inhibit_rules:
+      - source_match:
+          severity: critical
+        target_match:
+          severity: warning
+        equal: ['alertname', 'namespace']
+{{- end }}

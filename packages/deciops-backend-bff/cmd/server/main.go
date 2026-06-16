@@ -15,6 +15,7 @@ import (
 	"github.com/decisionops/deciops-backend-bff/internal/repository"
 	"github.com/decisionops/deciops-backend-bff/pkg/websocket"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -56,6 +57,9 @@ func main() {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	// Prometheus metrics endpoint
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// WebSocket endpoint
 	router.GET("/ws", wsHandler.HandleWebSocket)

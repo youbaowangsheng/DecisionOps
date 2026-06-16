@@ -1,0 +1,173 @@
+{{- if .Values.observability.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "deciops.fullname" . }}-infrastructure-alerts
+  labels:
+    {{- include "deciops.labels" . | nindent 4 }}
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: deciops.infrastructure_alerts
+      interval: 30s
+      rules:
+        - alert: PodMemoryUsageHigh
+          expr: |
+            (sum(container_memory_working_set_bytes{pod=~"deciops-.*"}) by (pod)
+            /
+            sum(container_spec_memory_limit_bytes{pod=~"deciops-.*"}) by (pod)) > 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage on {{ $labels.pod }}"
+            description: "Memory usage is {{ $value | humanizePercentage }} of limit"
+
+        - alert: PodCPUUsageHigh
+          expr: |
+            (sum(rate(container_cpu_usage_seconds_total{pod=~"deciops-.*"}[5m])) by (pod)
+            /
+            sum(container_spec_cpu_quota{pod=~"deciops-.*"}/100000) by (pod)) > 0.9
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage on {{ $labels.pod }}"
+            description: "CPU usage is {{ $value | humanizePercentage }} of quota"
+
+        - alert: PodRestartingTooMuch
+          expr: |
+            increase(kube_pod_container_status_restarts_total{pod=~"deciops-.*"}[1h]) > 5
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} restarting too frequently"
+            description: "Pod has restarted {{ $value }} times in the last hour"
+
+        - alert: HPAReplicasAtMax
+          expr: |
+            kube_hpa_status_current_replicas >= kube_hpa_spec_max_replicas
+          for: 10m
+          labels:
+            severity: info
+          annotations:
+            summary: "HPA {{ $labels.namespace }}/{{ $labels.hpa }} at maximum replicas"
+            description: "HPA has been at max replicas for 10 minutes"
+
+    - name: deciops.application_alerts
+      interval: 30s
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            (
+              sum(rate(http_requests_total{status=~"5..",service=~"backend-bff|decision-engine"}[5m]))
+              /
+              sum(rate(http_requests_total{service=~"backend-bff|decision-engine"}[5m]))
+            ) > 0.01
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High error rate on {{ $labels.service }}"
+            description: "Error rate is {{ $value | humanizePercentage }} (threshold: 1%)"
+
+        - alert: HighLatencyP95
+          expr: |
+            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=~"backend-bff|decision-engine"}[5m])) by (le)) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High p95 latency on {{ $labels.service }}"
+            description: "p95 latency is {{ $value | humanizeDuration }} (threshold: 500ms)"
+
+        - alert: HighLatencyP99
+          expr: |
+            histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=~"backend-bff|decision-engine"}[5m])) by (le)) > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Critical p99 latency on {{ $labels.service }}"
+            description: "p99 latency is {{ $value | humanizeDuration }} (threshold: 1s)"
+
+        - alert: ServiceDown
+          expr: |
+            up{service=~"backend-bff|decision-engine|frontend"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.service }} is down"
+            description: "{{ $labels.service }} has been down for more than 1 minute"
+
+        - alert: DecisionBacklogGrowing
+          expr: |
+            (sum(decisions_pending{service="decision-engine"}) by (service)
+            /
+            sum(decisions_total{service="decision-engine"}) by (service)) > 0.5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Decision backlog growing on {{ $labels.service }}"
+            description: "Decision backlog ratio is {{ $value | humanizePercentage }}"
+
+        - alert: AuditQueueBacklog
+          expr: |
+            sum(audit_events_pending) > 1000
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Audit queue backlog growing"
+            description: "Audit events pending: {{ $value }}"
+
+        - alert: DatabaseConnectionErrors
+          expr: |
+            increase(postgresql_errors_total[5m]) > 10
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Database connection errors detected"
+            description: "{{ $value }} errors in the last 5 minutes"
+
+        - alert: RedisConnectionErrors
+          expr: |
+            increase(redis_errors_total[5m]) > 10
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Redis connection errors detected"
+            description: "{{ $value }} errors in the last 5 minutes"
+
+    - name: deciops.business_alerts
+      interval: 60s
+      rules:
+        - alert: DecisionSuccessRateLow
+          expr: |
+            (
+              sum(rate(decisions_total{status="success"}[5m]))
+              /
+              sum(rate(decisions_total[5m]))
+            ) < 0.95
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Decision success rate below threshold"
+            description: "Success rate is {{ $value | humanizePercentage }} (threshold: 95%)"
+
+        - alert: NoDecisionsInPeriod
+          expr: |
+            sum(rate(decisions_total[5m])) == 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "No decisions processed in the last 30 minutes"
+            description: "Decision engine may be idle or experiencing issues"
+{{- end }}
