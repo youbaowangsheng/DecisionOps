@@ -16,6 +16,35 @@ type PostgresRepository struct {
 	db *pgxpool.Pool
 }
 
+// AuditLog represents an audit log entry
+type AuditLog struct {
+	ID            string                 `json:"id"`
+	TenantID      string                 `json:"tenant_id"`
+	DecisionID    string                 `json:"decision_id"`
+	AuditorID     string                 `json:"auditor_id"`
+	Action        string                 `json:"action"`
+	Comment       string                 `json:"comment"`
+	Modifications map[string]interface{} `json:"modifications"`
+	IPAddress     string                 `json:"ip_address"`
+	UserAgent     string                 `json:"user_agent"`
+	CreatedAt     time.Time              `json:"created_at"`
+}
+
+// BenefitTracking represents a benefit tracking entry
+type BenefitTracking struct {
+	ID             string     `json:"id"`
+	TenantID       string     `json:"tenant_id"`
+	DecisionID     string     `json:"decision_id"`
+	ScenarioID     string     `json:"scenario_id"`
+	ExpectedBenefit float64   `json:"expected_benefit"`
+	ActualBenefit  float64    `json:"actual_benefit"`
+	BenefitType    string     `json:"benefit_type"`
+	Status         string     `json:"status"`
+	CalculatedAt   *time.Time `json:"calculated_at"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
 // NewPostgresDB creates a new PostgreSQL connection pool
 func NewPostgresDB(dbURL string) (*pgxpool.Pool, error) {
 	config, err := pgxpool.ParseConfig(dbURL)
@@ -339,4 +368,94 @@ func (r *PostgresRepository) GetDashboardMetrics(ctx context.Context, tenantID s
 	}
 
 	return metrics, nil
+}
+
+// CreateAuditLog creates a new audit log entry
+func (r *PostgresRepository) CreateAuditLog(ctx context.Context, tenantID, decisionID, auditorID, action, comment string, modifications map[string]interface{}, ipAddress, userAgent string) error {
+	query := `
+		INSERT INTO audit_log (tenant_id, decision_id, auditor_id, action, comment, modifications, ip_address, user_agent)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`
+
+	_, err := r.db.Exec(ctx, query, tenantID, decisionID, auditorID, action, comment, modifications, ipAddress, userAgent)
+	if err != nil {
+		return fmt.Errorf("failed to create audit log: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateBenefitTracking updates a benefit tracking entry
+func (r *PostgresRepository) UpdateBenefitTracking(ctx context.Context, tenantID, decisionID string, expectedBenefit, actualBenefit float64, benefitType, status string) error {
+	query := `
+		UPDATE benefit_tracking
+		SET expected_benefit = $1,
+		    actual_benefit = $2,
+		    benefit_type = $3,
+		    status = $4,
+		    calculated_at = NOW(),
+		    updated_at = NOW()
+		WHERE tenant_id = $5 AND decision_id = $6
+	`
+
+	result, err := r.db.Exec(ctx, query, expectedBenefit, actualBenefit, benefitType, status, tenantID, decisionID)
+	if err != nil {
+		return fmt.Errorf("failed to update benefit tracking: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("benefit tracking not found")
+	}
+
+	return nil
+}
+
+// GetBenefitSummary retrieves benefit summary for a tenant
+func (r *PostgresRepository) GetBenefitSummary(ctx context.Context, tenantID string) (map[string]interface{}, error) {
+	summary := make(map[string]interface{})
+
+	// Total expected benefit
+	var totalExpected float64
+	if err := r.db.QueryRow(ctx, "SELECT COALESCE(SUM(expected_benefit), 0) FROM benefit_tracking WHERE tenant_id = $1", tenantID).Scan(&totalExpected); err != nil {
+		return nil, fmt.Errorf("failed to calculate total expected benefit: %w", err)
+	}
+	summary["total_expected_benefit"] = totalExpected
+
+	// Total actual benefit
+	var totalActual float64
+	if err := r.db.QueryRow(ctx, "SELECT COALESCE(SUM(actual_benefit), 0) FROM benefit_tracking WHERE tenant_id = $1", tenantID).Scan(&totalActual); err != nil {
+		return nil, fmt.Errorf("failed to calculate total actual benefit: %w", err)
+	}
+	summary["total_actual_benefit"] = totalActual
+
+	// Benefit by status
+	query := `
+		SELECT status, COUNT(*), COALESCE(SUM(expected_benefit), 0), COALESCE(SUM(actual_benefit), 0)
+		FROM benefit_tracking
+		WHERE tenant_id = $1
+		GROUP BY status
+	`
+	rows, err := r.db.Query(ctx, query, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query benefit by status: %w", err)
+	}
+	defer rows.Close()
+
+	statusBreakdown := make(map[string]map[string]interface{})
+	for rows.Next() {
+		var status string
+		var count int64
+		var expected, actual float64
+		if err := rows.Scan(&status, &count, &expected, &actual); err != nil {
+			return nil, fmt.Errorf("failed to scan benefit status: %w", err)
+		}
+		statusBreakdown[status] = map[string]interface{}{
+			"count":            count,
+			"expected_benefit": expected,
+			"actual_benefit":   actual,
+		}
+	}
+	summary["by_status"] = statusBreakdown
+
+	return summary, nil
 }

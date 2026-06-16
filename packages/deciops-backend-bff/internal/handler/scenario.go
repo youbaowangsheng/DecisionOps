@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/decisionops/deciops-backend-bff/internal/cache"
 	"github.com/decisionops/deciops-backend-bff/internal/middleware"
 	"github.com/decisionops/deciops-backend-bff/internal/model"
 	"github.com/decisionops/deciops-backend-bff/internal/repository"
@@ -11,12 +14,18 @@ import (
 
 // ScenarioHandler handles scenario-related requests
 type ScenarioHandler struct {
-	repo *repository.PostgresRepository
+	repo        *repository.PostgresRepository
+	redisCache  *cache.RedisClient
+	cacheExpiry time.Duration
 }
 
 // NewScenarioHandler creates a new scenario handler
-func NewScenarioHandler(repo *repository.PostgresRepository) *ScenarioHandler {
-	return &ScenarioHandler{repo: repo}
+func NewScenarioHandler(repo *repository.PostgresRepository, redisCache *cache.RedisClient) *ScenarioHandler {
+	return &ScenarioHandler{
+		repo:        repo,
+		redisCache:  redisCache,
+		cacheExpiry: 5 * time.Minute,
+	}
 }
 
 // ListScenarios godoc
@@ -36,10 +45,29 @@ func (h *ScenarioHandler) ListScenarios(c *gin.Context) {
 		return
 	}
 
+	cacheKey := "scenarios:list"
+
+	if h.redisCache != nil {
+		cached, err := h.redisCache.Get(c.Request.Context(), tenantID, cacheKey)
+		if err == nil && cached != "" {
+			var scenarios []model.ScenarioConfig
+			if json.Unmarshal([]byte(cached), &scenarios) == nil {
+				c.JSON(http.StatusOK, model.SuccessResponse(scenarios))
+				return
+			}
+		}
+	}
+
 	scenarios, err := h.repo.ListScenarios(c.Request.Context(), tenantID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, model.ErrorResponse("failed to list scenarios: "+err.Error()))
 		return
+	}
+
+	if h.redisCache != nil {
+		if data, err := json.Marshal(scenarios); err == nil {
+			h.redisCache.Set(c.Request.Context(), tenantID, cacheKey, string(data), h.cacheExpiry)
+		}
 	}
 
 	c.JSON(http.StatusOK, model.SuccessResponse(scenarios))

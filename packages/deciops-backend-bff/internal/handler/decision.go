@@ -151,6 +151,20 @@ func (h *DecisionHandler) AuditDecision(c *gin.Context) {
 		userID = req.AuditorID
 	}
 
+	action := "approve"
+	if !req.Approved {
+		action = "reject"
+	}
+
+	// Create audit log entry
+	auditModifications := map[string]interface{}{
+		"approved": req.Approved,
+	}
+	if err := h.repo.CreateAuditLog(c.Request.Context(), tenantID, decisionID, userID, action, req.Comment, auditModifications, c.ClientIP(), c.GetHeader("User-Agent")); err != nil {
+		c.JSON(http.StatusInternalServerError, model.ErrorResponse("failed to create audit log: "+err.Error()))
+		return
+	}
+
 	if err := h.repo.AuditDecision(c.Request.Context(), tenantID, decisionID, req.Approved, userID, req.Comment); err != nil {
 		c.JSON(http.StatusInternalServerError, model.ErrorResponse("failed to audit decision: "+err.Error()))
 		return

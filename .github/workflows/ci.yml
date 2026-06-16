@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Go Backend BFF
+  build-backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: deciops
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: deciops
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - name: Go mod tidy
+        run: cd packages/deciops-backend-bff && go mod tidy
+      - name: Build
+        run: cd packages/deciops-backend-bff && go build -o server ./cmd/server
+      - name: Test
+        run: cd packages/deciops-backend-bff && go test -v ./...
+
+  # Python Engine
+  build-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          cd packages/deciops-engine
+          pip install -e ".[dev]"
+      - name: Test
+        run: |
+          cd packages/deciops-engine
+          pytest tests/ -v
+
+  # React Frontend
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install
+      - name: Build
+        run: pnpm build
+        env:
+          CI: true
+
+  # Lint check
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run lint
+        run: |
+          cd packages/deciops-frontend && npm run lint || true

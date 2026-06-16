@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/decisionops/deciops-backend-bff/internal/cache"
 	"github.com/decisionops/deciops-backend-bff/internal/config"
 	"github.com/decisionops/deciops-backend-bff/internal/handler"
 	"github.com/decisionops/deciops-backend-bff/internal/middleware"
@@ -35,15 +36,24 @@ func main() {
 	// Initialize repository
 	repo := repository.NewPostgresRepository(db)
 
+	// Initialize Redis client
+	var redisClient *cache.RedisClient
+	redisClient, err = cache.NewRedisClient(cfg.RedisURL)
+	if err != nil {
+		log.Printf("Warning: Failed to connect to Redis: %v. Caching disabled.", err)
+	} else {
+		defer redisClient.Close()
+	}
+
 	// Initialize WebSocket hub
 	hub := websocket.NewHub()
 	go hub.Run()
 
 	// Initialize handlers
 	decisionHandler := handler.NewDecisionHandler(repo, hub)
-	scenarioHandler := handler.NewScenarioHandler(repo)
+	scenarioHandler := handler.NewScenarioHandler(repo, redisClient)
 	taskHandler := handler.NewTaskHandler(repo)
-	dashboardHandler := handler.NewDashboardHandler(repo)
+	dashboardHandler := handler.NewDashboardHandler(repo, redisClient)
 	wsHandler := handler.NewWebSocketHandler(hub, cfg.JWTSecret)
 
 	// Setup Gin router
